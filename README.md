@@ -26,7 +26,7 @@ uv init
 3. 패키지 설치
 
 ```bash
-uv add streamlit pymupdf numpy requests openai python-dotenv
+uv add streamlit pymupdf numpy requests openai python-dotenv google-genai
 ```
 
 ## 2. 앱 실행
