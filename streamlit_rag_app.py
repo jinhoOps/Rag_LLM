@@ -178,7 +178,7 @@ def sidebar_ui() -> Tuple[str, str, Dict[str, str], int, bytes | None]:
             options=["HCX-007", "HCX-005", "HCX-DASH-002", "HCX-003", "HCX-DASH-001"],
             index=1,
         )
-        top_k = st.sidebar.slider("Top-K 문맥 수", min_value=1, max_value=10, value=5)
+        top_k = st.sidebar.slider("Top-K 문맥 수", min_value=0, max_value=10, value=3)
     elif engine_name == "OpenAI":
         api_keys["OPENAI_API_KEY"] = st.sidebar.text_input(
             "OpenAI API Key",
@@ -190,7 +190,7 @@ def sidebar_ui() -> Tuple[str, str, Dict[str, str], int, bytes | None]:
             options=["gpt-4.1-mini", "gpt-4.1", "gpt-4o-mini"],
             index=0,
         )
-        top_k = st.sidebar.slider("Top-K 문맥 수", min_value=1, max_value=10, value=5)
+        top_k = st.sidebar.slider("Top-K 문맥 수", min_value=1, max_value=10, value=3)
     elif engine_name == "Gemini":
         api_keys["GEMINI_API_KEY"] = st.sidebar.text_input(
             "Gemini API Key",
@@ -202,7 +202,7 @@ def sidebar_ui() -> Tuple[str, str, Dict[str, str], int, bytes | None]:
             options=["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.5-pro"],
             index=1,
         )
-        top_k = st.sidebar.slider("Top-K 문맥 수", min_value=1, max_value=10, value=5)
+        top_k = st.sidebar.slider("Top-K 문맥 수", min_value=1, max_value=10, value=3)
     elif engine_name == "GrokDirect":
         api_keys["XAI_API_KEY"] = st.sidebar.text_input(
             "xAI API Key",
@@ -232,7 +232,7 @@ def sidebar_ui() -> Tuple[str, str, Dict[str, str], int, bytes | None]:
             options=["grok-4-1-fast-non-reasoning"],
             index=0,
         )
-        top_k = st.sidebar.slider("Top-K 문맥 수", min_value=1, max_value=10, value=5)
+        top_k = st.sidebar.slider("Top-K 문맥 수", min_value=1, max_value=10, value=3)
         st.sidebar.caption("PDF 처리 및 임베딩 생성 후 질문을 보내세요.")
     else:
         api_keys["ANTHROPIC_API_KEY"] = st.sidebar.text_input(
