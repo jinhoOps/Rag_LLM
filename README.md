@@ -32,7 +32,7 @@ uv add streamlit pymupdf numpy requests openai python-dotenv google-genai anthro
 ## 2. 앱 실행
 
 ```bash
-uv run streamlit run rag_app.py
+uv run streamlit run streamlit_rag_app.py
 ```
 
 브라우저 자동 오픈 또는

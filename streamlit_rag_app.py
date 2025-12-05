@@ -58,11 +58,23 @@ def search_chunks(
     if chunk_embeddings is None or len(chunk_embeddings) == 0:
         return []
 
+    # 1) 쿼리 임베딩
     query_vec = engine.embed([query])
     if query_vec.ndim == 2:
         query_vec = query_vec[0:1, :]
+
+    # 2) 코사인 유사도
     sims = cosine_similarity_matrix(query_vec, chunk_embeddings)[0]
-    indices = np.argsort(sims)[::-1][:top_k]
+    sorted_indices = np.argsort(sims)[::-1]
+
+    # 3) top_k 해석
+    #    - top_k <= 0: 전체 청크 사용 (단일앱과 비슷하게)
+    #    - top_k > 0 : 상위 k개만 사용
+    if top_k is None or top_k <= 0 or top_k >= len(sorted_indices):
+        indices = sorted_indices
+    else:
+        indices = sorted_indices[:top_k]
+
     selected = [chunk_texts[int(idx)] for idx in indices]
     return selected
 
@@ -101,7 +113,7 @@ def build_engine(
     if engine_name == "HCX":
         return HCXEngine(
             api_key=api_keys.get("HCX_API_KEY", ""),
-            model=engine_model or "HCX-005",
+            model=engine_model or "HCX-007",
         )
     if engine_name == "OpenAI":
         return OpenAIEngine(
@@ -149,20 +161,27 @@ def sidebar_ui() -> Tuple[str, str, Dict[str, str], int, bytes | None]:
             "GrokOpenAIEmbedding",
             "ClaudeCitations",
         ],
-        index=["HCX", "OpenAI", "Gemini", "GrokDirect", "GrokOpenAIEmbedding", "ClaudeCitations"].index(
-            st.session_state.engine_name
-        )
-        if "engine_name" in st.session_state
-        and st.session_state.engine_name
-        in [
-            "HCX",
-            "OpenAI",
-            "Gemini",
-            "GrokDirect",
-            "GrokOpenAIEmbedding",
-            "ClaudeCitations",
-        ]
-        else 1,
+        index=(
+            [
+                "HCX",
+                "OpenAI",
+                "Gemini",
+                "GrokDirect",
+                "GrokOpenAIEmbedding",
+                "ClaudeCitations",
+            ].index(st.session_state.engine_name)
+            if "engine_name" in st.session_state
+            and st.session_state.engine_name
+            in [
+                "HCX",
+                "OpenAI",
+                "Gemini",
+                "GrokDirect",
+                "GrokOpenAIEmbedding",
+                "ClaudeCitations",
+            ]
+            else 1
+        ),
     )
     st.session_state.engine_name = engine_name
 
@@ -178,7 +197,13 @@ def sidebar_ui() -> Tuple[str, str, Dict[str, str], int, bytes | None]:
             options=["HCX-007", "HCX-005", "HCX-DASH-002", "HCX-003", "HCX-DASH-001"],
             index=1,
         )
-        top_k = st.sidebar.slider("Top-K 문맥 수", min_value=0, max_value=10, value=3)
+        top_k = st.sidebar.slider(
+            "Top-K 문맥 수 (0 = 전체 사용)",
+            min_value=0,
+            max_value=10,
+            value=0,  # 단일앱과 최대한 비슷하게 하려면 0으로 두는 게 좋습니다.
+        )
+
     elif engine_name == "OpenAI":
         api_keys["OPENAI_API_KEY"] = st.sidebar.text_input(
             "OpenAI API Key",
@@ -215,7 +240,9 @@ def sidebar_ui() -> Tuple[str, str, Dict[str, str], int, bytes | None]:
             index=0,
         )
         top_k = 0
-        st.sidebar.info("이 모드는 임베딩 없이 PDF 전체 컨텍스트를 프롬프트로 전달합니다.")
+        st.sidebar.info(
+            "이 모드는 임베딩 없이 PDF 전체 컨텍스트를 프롬프트로 전달합니다."
+        )
     elif engine_name == "GrokOpenAIEmbedding":
         api_keys["OPENAI_API_KEY"] = st.sidebar.text_input(
             "OpenAI API Key (임베딩용)",
@@ -246,7 +273,9 @@ def sidebar_ui() -> Tuple[str, str, Dict[str, str], int, bytes | None]:
             index=0,
         )
         top_k = 0
-        st.sidebar.info("PDF 전체를 base64로 전달하여 Citations 기반 답변을 생성합니다.")
+        st.sidebar.info(
+            "PDF 전체를 base64로 전달하여 Citations 기반 답변을 생성합니다."
+        )
 
     st.session_state.engine_model = model
 
@@ -284,7 +313,14 @@ def process_pdf_for_engine(
         return
 
     text = extract_text_from_pdf(pdf_bytes)
-    chunks = chunk_text(text, chunk_size=1000, overlap=200)
+
+    # 여기 분기 추가: HCX는 단일앱과 동일하게 500자 청킹
+    if engine_name == "HCX":
+        # overlap 없이, 500자 기준
+        chunks = chunk_text(text, chunk_size=500, overlap=0)
+    else:
+        chunks = chunk_text(text, chunk_size=1000, overlap=200)
+
     st.session_state.chunks = chunks
 
     if not engine.supports_embedding:
@@ -296,6 +332,10 @@ def process_pdf_for_engine(
         embeddings = engine.embed(chunks)
         st.session_state.chunk_embeddings = embeddings
         st.session_state.pdf_processed = True
+        # 디버그: 청크/임베딩 정보 확인
+        st.sidebar.write(f"[DEBUG] 청크 개수: {len(chunks)}")
+        st.sidebar.write(f"[DEBUG] 임베딩 shape: {getattr(embeddings, 'shape', None)}")
+
     except Exception as exc:
         st.session_state.chunk_embeddings = None
         st.session_state.pdf_processed = False
@@ -335,6 +375,10 @@ def chat_ui(engine: BaseEngine, engine_name: str, top_k: int) -> None:
                     top_k=top_k,
                 )
                 context_str = "\n\n".join(selected)
+                # 디버그: 실제로 몇 개의 청크가 컨텍스트로 들어가는지 확인
+                st.sidebar.write(f"[DEBUG] 선택된 청크 개수: {len(selected)}")
+                if selected:
+                    st.sidebar.write(f"[DEBUG] 첫 청크 일부: {selected[0][:100]}")
         else:
             if engine_name == "GrokDirect":
                 chunks = st.session_state.chunks or []
